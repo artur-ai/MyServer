@@ -13,15 +13,17 @@ public class Server {
     private static final int PORT = 3000;
 
     public static void main(String[] args) {
-        try {
-            ServerSocket serverSocket = new ServerSocket(PORT);
+        try(ServerSocket serverSocket = new ServerSocket(PORT)) {
             logger.info("Server started on port " + PORT + "," + "Waiting for users.....");
 
+            // NOSONAR: infinite loop intended here
             while (true) {
-                try (Socket clientSocket = serverSocket.accept()) {
+                try (
+                        Socket clientSocket = serverSocket.accept();
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                        OutputStream outputStream = clientSocket.getOutputStream()
+                        ) {
                     logger.info("Client connected " + clientSocket.getInetAddress());
-
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 
                     String requestLine = reader.readLine();
                     logger.info("Request: " + requestLine);
@@ -36,7 +38,8 @@ public class Server {
 
                     if (requestLine == null || !requestLine.startsWith("GET")) {
                         response = "HTTP/1.1 405 Method Not Allowed\r\n\r\n";
-                        clientSocket.getOutputStream().write(response.getBytes());
+                        outputStream.write(response.getBytes());
+                        outputStream.flush();
                         continue;
                     }
 
@@ -58,16 +61,18 @@ public class Server {
                     String headers = "HTTP/1.1 200 OK\r\n" + "Content-Type: " + contentType + "\r\n" +
                             "Content-Length: " + fileContent.length + "\r\n" + "\r\n";
 
-                    OutputStream outputStream = clientSocket.getOutputStream();
                     outputStream.write(headers.getBytes());
                     outputStream.write(fileContent);
                     outputStream.flush();
+
                 } catch (IOException exception) {
                     logger.log(Level.SEVERE, "Client connection error", exception);
                 }
+
             }
         } catch (IOException exception) {
             logger.log(Level.SEVERE, "Error with server", exception);
         }
+
     }
 }
